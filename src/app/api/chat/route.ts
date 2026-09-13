@@ -1,31 +1,75 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { streamText } from "ai";
+import { requireUserId, UnauthorizedError } from "@/lib/auth";
 import { resolveModel, UnknownProviderError } from "@/lib/models";
+import { retrieve } from "@/lib/rag";
+import { appendMessage, getOrCreateConversation, listMessages } from "@/lib/thread";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
-async function systemPrompt() {
+async function systemPrompt(retrieved: string) {
   const file = path.join(process.cwd(), "src/prompts/astra/v0.1.md");
-  return readFile(file, "utf8");
+  const base = await readFile(file, "utf8");
+  if (!retrieved) return base;
+  return `${base}\n\nRETRIEVED PASSAGES\n${retrieved}\nUse only these passages for facts. If they are empty, say you do not know.`;
 }
 
 export async function POST(req: Request) {
   if (process.env.DISABLE_GENERATION === "1") {
-    return Response.json(
-      { error: "Generation is disabled." },
-      { status: 503 },
-    );
+    return Response.json({ error: "Generation is disabled." }, { status: 503 });
+  }
+
+  let userId: string;
+  try {
+    userId = await requireUserId();
+  } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return Response.json({ error: "Unauthorized." }, { status: 401 });
+    }
+    throw err;
   }
 
   const body = await req.json().catch(() => null);
-  const messages = body?.messages;
+  const incoming = body?.messages;
   const provider = body?.provider;
+  const postedUserId = body?.userId;
+  if (postedUserId && postedUserId !== userId) {
+    return Response.json(
+      { error: "Client userId is ignored. Use the session." },
+      { status: 400 },
+    );
+  }
 
-  if (!Array.isArray(messages) || messages.length === 0) {
+  if (!Array.isArray(incoming) || incoming.length === 0) {
     return Response.json({ error: "Empty body." }, { status: 400 });
   }
+
+  const last = incoming[incoming.length - 1];
+  const lastText =
+    typeof last?.content === "string"
+      ? last.content
+      : Array.isArray(last?.parts)
+        ? last.parts.map((p: { type?: string; text?: string }) => (p.type === "text" ? p.text : "")).join("")
+        : "";
+
+  if (!lastText.trim()) {
+    return Response.json({ error: "Empty body." }, { status: 400 });
+  }
+
+  let conversation;
+  try {
+    conversation = getOrCreateConversation(userId, body?.conversationId);
+    appendMessage(userId, conversation.id, "user", lastText);
+  } catch {
+    return Response.json({ error: "Conversation not found." }, { status: 404 });
+  }
+
+  const hits = retrieve(userId, lastText);
+  const retrieved = hits
+    .map((h, i) => `[${i + 1}] ${h.title} — page ${h.page}\n${h.text}`)
+    .join("\n\n");
 
   let model;
   try {
@@ -34,16 +78,25 @@ export async function POST(req: Request) {
     if (err instanceof UnknownProviderError) {
       return Response.json({ error: "Unknown provider." }, { status: 400 });
     }
-    const message =
-      err instanceof Error ? err.message : "Model is not configured.";
+    const message = err instanceof Error ? err.message : "Model is not configured.";
     return Response.json({ error: message }, { status: 500 });
   }
 
+  const history = listMessages(userId, conversation.id).map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
   const result = streamText({
     model,
-    system: await systemPrompt(),
-    messages,
+    system: await systemPrompt(retrieved),
+    messages: history,
+    onFinish: async ({ text }) => {
+      appendMessage(userId, conversation.id, "assistant", text);
+    },
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    headers: { "x-conversation-id": conversation.id },
+  });
 }
