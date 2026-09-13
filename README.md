@@ -1,21 +1,25 @@
 # Ship the Model
 
 Companion repository for **Ship the Model — 2026 Edition**  
-Sys from OvyQen
+Astra from OvyQen
 
 Handbook: sold at [https://ovyqen.gumroad.com/](https://ovyqen.gumroad.com/)  
 This repo: [https://github.com/ovyqen-repo/ship-the-model](https://github.com/ovyqen-repo/ship-the-model)
 
-Tag that matches the current PDF: `edition-2026.09`
+Tag that matches the current PDF: `edition-2026.09`  
+This commit is **Astra v2** (streaming + provider swap).
 
 ## What this is
 
-A small Next.js App Router starter that matches Chapter 2–3 of the handbook:
+A small Next.js App Router starter that matches Chapters 2–3 of the handbook:
 
 - server-only API keys
 - `streamText` on `POST /api/chat`
 - `useChat` on the client
+- provider field resolved by `lib/models.ts`
+- unknown provider ids → HTTP 400, no key leakage
 - a versioned system prompt file
+- `DISABLE_GENERATION=1` kill switch
 
 It is a field kit, not a full clone of every chapter project.
 
@@ -47,7 +51,7 @@ Put a Gemini key in `.env.local`. Never prefix it with `NEXT_PUBLIC_`.
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Type a sentence. Tokens should appear before the full paragraph exists.
+Open [http://localhost:3000](http://localhost:3000). Type a sentence. Tokens should appear before the full paragraph exists. Switch the provider select — history stays, the factory changes.
 
 ## Layout
 

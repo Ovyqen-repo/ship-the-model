@@ -3,7 +3,15 @@
 import { useChat } from "@ai-sdk/react";
 import { FormEvent, useState } from "react";
 
+const PROVIDERS = [
+  { id: "google", label: "Gemini" },
+  { id: "openai", label: "OpenAI" },
+] as const;
+
 export default function ChatPanel() {
+  const [provider, setProvider] = useState<(typeof PROVIDERS)[number]["id"]>(
+    "google",
+  );
   const { messages, sendMessage, status } = useChat();
   const [input, setInput] = useState("");
 
@@ -12,13 +20,46 @@ export default function ChatPanel() {
     const text = input.trim();
     if (!text) return;
     setInput("");
-    await sendMessage({ text });
+    await sendMessage({ text }, { body: { provider } });
   }
 
   const busy = status === "submitted" || status === "streaming";
 
   return (
     <section style={{ marginTop: 28 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          marginBottom: 10,
+          fontSize: 13,
+          color: "#57534E",
+        }}
+      >
+        <label htmlFor="provider">Provider</label>
+        <select
+          id="provider"
+          value={provider}
+          onChange={(e) =>
+            setProvider(e.target.value as (typeof PROVIDERS)[number]["id"])
+          }
+          disabled={busy}
+          style={{
+            padding: "6px 8px",
+            borderRadius: 6,
+            border: "1px solid #D6D3D1",
+            background: "white",
+          }}
+        >
+          {PROVIDERS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <span>Switch mid-thread. History stays. Model is resolved on the server.</span>
+      </div>
       <div
         style={{
           minHeight: 280,
@@ -43,6 +84,11 @@ export default function ChatPanel() {
         ))}
         {busy && (
           <p style={{ color: "#0F766E", fontSize: 13 }}>Streaming…</p>
+        )}
+        {status === "error" && (
+          <p style={{ color: "#9F1239", fontSize: 13 }}>
+            The route refused the request. Check the provider and the server key.
+          </p>
         )}
       </div>
       <form onSubmit={onSubmit} style={{ marginTop: 12, display: "flex", gap: 8 }}>

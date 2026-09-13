@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { streamText } from "ai";
-import { resolveModel } from "@/lib/models";
+import { resolveModel, UnknownProviderError } from "@/lib/models";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
@@ -27,8 +27,20 @@ export async function POST(req: Request) {
     return Response.json({ error: "Empty body." }, { status: 400 });
   }
 
+  let model;
+  try {
+    model = resolveModel(provider);
+  } catch (err) {
+    if (err instanceof UnknownProviderError) {
+      return Response.json({ error: "Unknown provider." }, { status: 400 });
+    }
+    const message =
+      err instanceof Error ? err.message : "Model is not configured.";
+    return Response.json({ error: message }, { status: 500 });
+  }
+
   const result = streamText({
-    model: resolveModel(provider),
+    model,
     system: await systemPrompt(),
     messages,
   });
