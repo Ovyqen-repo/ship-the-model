@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 const PROVIDERS = [
   { id: "google", label: "Gemini" },
@@ -12,15 +12,38 @@ export default function ChatPanel() {
   const [provider, setProvider] = useState<(typeof PROVIDERS)[number]["id"]>(
     "google",
   );
-  const { messages, sendMessage, status } = useChat();
+  const [conversationId, setConversationId] = useState<string>();
+  const { messages, sendMessage, status, stop } = useChat();
   const [input, setInput] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/conversations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.conversation?.id) {
+          setConversationId(data.conversation.id);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const text = input.trim();
     if (!text) return;
     setInput("");
-    await sendMessage({ text }, { body: { provider } });
+    await sendMessage(
+      { text },
+      { body: { provider, conversationId } },
+    );
   }
 
   const busy = status === "submitted" || status === "streaming";
@@ -35,6 +58,7 @@ export default function ChatPanel() {
           marginBottom: 10,
           fontSize: 13,
           color: "#57534E",
+          flexWrap: "wrap",
         }}
       >
         <label htmlFor="provider">Provider</label>
@@ -58,7 +82,7 @@ export default function ChatPanel() {
             </option>
           ))}
         </select>
-        <span>Switch mid-thread. History stays. Model is resolved on the server.</span>
+        <span>Thread {conversationId ? conversationId.slice(0, 8) : "…"}</span>
       </div>
       <div
         style={{
@@ -87,7 +111,7 @@ export default function ChatPanel() {
         )}
         {status === "error" && (
           <p style={{ color: "#9F1239", fontSize: 13 }}>
-            The route refused the request. Check the provider and the server key.
+            The route refused the request. Sign in, check the key, or inspect the status code.
           </p>
         )}
       </div>
@@ -103,19 +127,34 @@ export default function ChatPanel() {
             border: "1px solid #D6D3D1",
           }}
         />
-        <button
-          type="submit"
-          disabled={busy}
-          style={{
-            padding: "10px 16px",
-            border: 0,
-            borderRadius: 6,
-            background: "#0B1F33",
-            color: "white",
-          }}
-        >
-          Send
-        </button>
+        {busy ? (
+          <button
+            type="button"
+            onClick={() => stop()}
+            style={{
+              padding: "10px 16px",
+              border: 0,
+              borderRadius: 6,
+              background: "#9F1239",
+              color: "white",
+            }}
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            style={{
+              padding: "10px 16px",
+              border: 0,
+              borderRadius: 6,
+              background: "#0B1F33",
+              color: "white",
+            }}
+          >
+            Send
+          </button>
+        )}
       </form>
     </section>
   );
