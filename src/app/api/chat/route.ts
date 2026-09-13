@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from "ai";
 import { requireUserId, UnauthorizedError } from "@/lib/auth";
 import { resolveModel, UnknownProviderError } from "@/lib/models";
 import { retrieve } from "@/lib/rag";
 import { appendMessage, getOrCreateConversation } from "@/lib/thread";
+import { deleteKnowledgeBaseTool, weatherTool } from "@/lib/tools";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
@@ -94,11 +95,17 @@ export async function POST(req: Request) {
   }
 
   const modelMessages = await convertToModelMessages(incoming);
+  const confirmFromRoute = body?.confirm === true;
 
   const result = streamText({
     model,
     system: await systemPrompt(retrieved),
     messages: modelMessages,
+    tools: {
+      weather: weatherTool,
+      deleteKnowledgeBase: deleteKnowledgeBaseTool({ userId, confirmFromRoute }),
+    },
+    stopWhen: stepCountIs(4),
     onFinish: ({ text }) => {
       if (text) appendMessage(userId, conversation.id, "assistant", text);
     },

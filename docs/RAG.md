@@ -1,16 +1,18 @@
 # RAG ingest
 
+Sign in at http://localhost:3000 first. Copy a Clerk cookie from DevTools → Application → Cookies → localhost.
+
 ```bash
 curl -X POST http://localhost:3000/api/ingest \
   -H "Content-Type: application/json" \
-  --cookie "...clerk session..." \
+  --cookie "__session=PASTE_CLERK_SESSION" \
   -d '{
     "title": "policy.pdf",
     "text": "PAGE 1\nWelcome.\nPAGE 3\nRefunds take fourteen days."
   }'
 ```
 
-Then ask: "How long do refunds take?"
+Then in the signed-in UI ask: `How long do refunds take?`
 
 Checkpoint
 
@@ -19,4 +21,4 @@ Checkpoint
 - a question with no passage is refused
 - another user's document is not in the retrieve query (filter is `chunks.user_id = session`)
 
-Lexical retrieval ships in v9 so a junior can run without an embedding vendor. Swap `retrieve()` for cosine search when you add vectors. Do not embed a whole PDF as one row.
+Lexical retrieval ships so a junior can run without an embedding vendor. Swap `retrieve()` for cosine search when you add vectors. Do not embed a whole PDF as one row.
