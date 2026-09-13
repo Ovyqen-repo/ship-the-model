@@ -1,8 +1,12 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 
+function googleKey() {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+}
+
 const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY,
+  apiKey: googleKey(),
 });
 
 const openai = createOpenAI({
@@ -20,11 +24,6 @@ export class UnknownProviderError extends Error {
   }
 }
 
-/**
- * Resolve a model on the server. Never import this file from a Client Component.
- * Unknown ids throw UnknownProviderError — the route turns that into HTTP 400
- * without leaking keys or internals.
- */
 export function resolveModel(provider?: string) {
   const id = (provider ?? "google").toLowerCase();
 
@@ -36,7 +35,7 @@ export function resolveModel(provider?: string) {
   }
 
   if (id === "google" || id === "gemini") {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!googleKey()) {
       throw new Error("GEMINI_API_KEY is missing on the server.");
     }
     return google("gemini-2.5-flash");

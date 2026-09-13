@@ -19,6 +19,14 @@ function textFromMessage(message: UIMessage | undefined) {
     .join("");
 }
 
+function publicError(error: unknown) {
+  console.error("[astra /api/chat]", error);
+  if (error == null) return "unknown error";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  return JSON.stringify(error);
+}
+
 async function systemPrompt(retrieved: string) {
   const file = path.join(process.cwd(), "src/prompts/astra/v0.1.md");
   const base = await readFile(file, "utf8");
@@ -91,14 +99,14 @@ export async function POST(req: Request) {
     model,
     system: await systemPrompt(retrieved),
     messages: modelMessages,
+    onFinish: ({ text }) => {
+      if (text) appendMessage(userId, conversation.id, "assistant", text);
+    },
   });
 
   return result.toUIMessageStreamResponse({
     originalMessages: incoming,
     headers: { "x-conversation-id": conversation.id },
-    onFinish: ({ responseMessage }) => {
-      const text = textFromMessage(responseMessage as UIMessage).trim();
-      if (text) appendMessage(userId, conversation.id, "assistant", text);
-    },
+    onError: publicError,
   });
 }
