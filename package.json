@@ -1,0 +1,24 @@
+{
+  "name": "ship-the-model",
+  "version": "2026.9.0",
+  "private": true,
+  "description": "Companion starter for Ship the Model — 2026 Edition",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^3.0.0",
+    "@ai-sdk/openai": "^3.0.0",
+    "@ai-sdk/react": "^3.0.0",
+    "ai": "^6.0.0",
+    "next": "^16.3.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^4.0.0"
+  }
+}
