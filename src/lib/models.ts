@@ -38,7 +38,8 @@ export function resolveModel(provider?: string) {
     if (!googleKey()) {
       throw new Error("GEMINI_API_KEY is missing on the server.");
     }
-    return google("gemini-2.5-flash");
+    // New AI Studio keys cannot call gemini-2.5-flash (Sept 2026).
+    return google("gemini-3.6-flash");
   }
 
   throw new UnknownProviderError(id);
