@@ -1,13 +1,23 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { streamText } from "ai";
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { requireUserId, UnauthorizedError } from "@/lib/auth";
 import { resolveModel, UnknownProviderError } from "@/lib/models";
 import { retrieve } from "@/lib/rag";
-import { appendMessage, getOrCreateConversation, listMessages } from "@/lib/thread";
+import { appendMessage, getOrCreateConversation } from "@/lib/thread";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
+
+function textFromMessage(message: UIMessage | undefined) {
+  if (!message) return "";
+  if (typeof (message as { content?: unknown }).content === "string") {
+    return (message as { content: string }).content;
+  }
+  return (message.parts ?? [])
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("");
+}
 
 async function systemPrompt(retrieved: string) {
   const file = path.join(process.cwd(), "src/prompts/astra/v0.1.md");
@@ -32,7 +42,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => null);
-  const incoming = body?.messages;
+  const incoming = body?.messages as UIMessage[] | undefined;
   const provider = body?.provider;
   const postedUserId = body?.userId;
   if (postedUserId && postedUserId !== userId) {
@@ -46,15 +56,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "Empty body." }, { status: 400 });
   }
 
-  const last = incoming[incoming.length - 1];
-  const lastText =
-    typeof last?.content === "string"
-      ? last.content
-      : Array.isArray(last?.parts)
-        ? last.parts.map((p: { type?: string; text?: string }) => (p.type === "text" ? p.text : "")).join("")
-        : "";
-
-  if (!lastText.trim()) {
+  const lastText = textFromMessage(incoming[incoming.length - 1]).trim();
+  if (!lastText) {
     return Response.json({ error: "Empty body." }, { status: 400 });
   }
 
@@ -82,21 +85,20 @@ export async function POST(req: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 
-  const history = listMessages(userId, conversation.id).map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  const modelMessages = await convertToModelMessages(incoming);
 
   const result = streamText({
     model,
     system: await systemPrompt(retrieved),
-    messages: history,
-    onFinish: async ({ text }) => {
-      appendMessage(userId, conversation.id, "assistant", text);
-    },
+    messages: modelMessages,
   });
 
   return result.toUIMessageStreamResponse({
+    originalMessages: incoming,
     headers: { "x-conversation-id": conversation.id },
+    onFinish: ({ responseMessage }) => {
+      const text = textFromMessage(responseMessage as UIMessage).trim();
+      if (text) appendMessage(userId, conversation.id, "assistant", text);
+    },
   });
 }

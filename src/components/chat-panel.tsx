@@ -1,7 +1,8 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { FormEvent, useEffect, useState } from "react";
+import { DefaultChatTransport } from "ai";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 const PROVIDERS = [
   { id: "google", label: "Gemini" },
@@ -13,14 +14,28 @@ export default function ChatPanel() {
     "google",
   );
   const [conversationId, setConversationId] = useState<string>();
-  const { messages, sendMessage, status, stop } = useChat();
   const [input, setInput] = useState("");
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        credentials: "include",
+        body: { provider, conversationId },
+      }),
+    [provider, conversationId],
+  );
+
+  const { messages, sendMessage, status, stop, error } = useChat({
+    transport,
+  });
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/conversations", {
       method: "POST",
       headers: { "content-type": "application/json" },
+      credentials: "include",
       body: "{}",
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -40,10 +55,7 @@ export default function ChatPanel() {
     const text = input.trim();
     if (!text) return;
     setInput("");
-    await sendMessage(
-      { text },
-      { body: { provider, conversationId } },
-    );
+    await sendMessage({ text });
   }
 
   const busy = status === "submitted" || status === "streaming";
@@ -111,7 +123,7 @@ export default function ChatPanel() {
         )}
         {status === "error" && (
           <p style={{ color: "#9F1239", fontSize: 13 }}>
-            The route refused the request. Sign in, check the key, or inspect the status code.
+            {error?.message ?? "The stream failed. Check the terminal and GEMINI_API_KEY."}
           </p>
         )}
       </div>
