@@ -1,49 +1,27 @@
-/**
- * Server-owned conversation contract — Chapter 4.
- * React state is display. This is truth.
- *
- * User
- *  └── Conversation
- *        └── Message
- *
- * Never accept userId from the browser when a session exists.
- */
+import { db } from "./db";
 
 export type Role = "user" | "assistant" | "system";
 
-export type ThreadMessage = {
-  id: string;
-  conversationId: string;
-  role: Role;
-  content: string;
-  createdAt: string;
-};
-
-export type Conversation = {
-  id: string;
-  userId: string;
-  createdAt: string;
-};
-
-const conversations = new Map<string, Conversation>();
-const messages = new Map<string, ThreadMessage[]>();
-
 export function getOrCreateConversation(userId: string, conversationId?: string) {
   if (!userId) throw new Error("userId is required from the session.");
+  const conn = db();
   if (conversationId) {
-    const existing = conversations.get(conversationId);
-    if (!existing || existing.userId !== userId) {
-      throw new Error("Conversation not found.");
-    }
-    return existing;
+    const row = conn
+      .prepare("SELECT id, user_id AS userId, created_at AS createdAt FROM conversations WHERE id = ?")
+      .get(conversationId) as { id: string; userId: string; createdAt: string } | undefined;
+    if (!row || row.userId !== userId) throw new Error("Conversation not found.");
+    return row;
   }
-  const created: Conversation = {
+  const created = {
     id: crypto.randomUUID(),
     userId,
     createdAt: new Date().toISOString(),
   };
-  conversations.set(created.id, created);
-  messages.set(created.id, []);
+  conn.prepare("INSERT INTO conversations (id, user_id, created_at) VALUES (?, ?, ?)").run(
+    created.id,
+    created.userId,
+    created.createdAt,
+  );
   return created;
 }
 
@@ -53,27 +31,33 @@ export function appendMessage(
   role: Role,
   content: string,
 ) {
-  const convo = conversations.get(conversationId);
-  if (!convo || convo.userId !== userId) {
-    throw new Error("Conversation not found.");
-  }
-  const row: ThreadMessage = {
+  const convo = getOrCreateConversation(userId, conversationId);
+  const row = {
     id: crypto.randomUUID(),
-    conversationId,
+    conversationId: convo.id,
     role,
     content,
     createdAt: new Date().toISOString(),
   };
-  const list = messages.get(conversationId) ?? [];
-  list.push(row);
-  messages.set(conversationId, list);
+  db()
+    .prepare(
+      "INSERT INTO messages (id, conversation_id, user_id, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .run(row.id, row.conversationId, userId, row.role, row.content, row.createdAt);
   return row;
 }
 
 export function listMessages(userId: string, conversationId: string) {
-  const convo = conversations.get(conversationId);
-  if (!convo || convo.userId !== userId) {
-    throw new Error("Conversation not found.");
-  }
-  return messages.get(conversationId) ?? [];
+  getOrCreateConversation(userId, conversationId);
+  return db()
+    .prepare(
+      "SELECT id, conversation_id AS conversationId, role, content, created_at AS createdAt FROM messages WHERE conversation_id = ? AND user_id = ? ORDER BY created_at ASC",
+    )
+    .all(conversationId, userId) as {
+    id: string;
+    conversationId: string;
+    role: Role;
+    content: string;
+    createdAt: string;
+  }[];
 }
