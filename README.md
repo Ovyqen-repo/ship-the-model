@@ -4,6 +4,8 @@ Companion repository for **Ship the Model — 2026 Edition** (`edition-2026.09-f
 
 Astra **v9 path**: streaming chat, provider factory, Clerk session, SQLite persistence, RAG ingest, tools, structured feedback.
 
+Default model: **`gpt-5.6-luna`**. Gemini (`gemini-3.6-flash`) is the optional provider. Flagship OpenAI is `gpt-6-astra` — not this product name.
+
 Handbook: https://ovyqen.gumroad.com/  
 Repo: https://github.com/ovyqen-repo/ship-the-model
 
@@ -16,7 +18,8 @@ npm install
 cp .env.example .env.local
 ```
 
-Fill `GEMINI_API_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `CLERK_SECRET_KEY`.
+Fill `OPENAI_API_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `CLERK_SECRET_KEY`.
+Optional Gemini path: `GEMINI_API_KEY` and provider `google`.
 
 Chapter 2 only: `ALLOW_ANON=1` skips Clerk so the first chat still runs. Production and capstone leave it at `0`.
 
