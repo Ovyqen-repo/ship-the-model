@@ -13,7 +13,7 @@ const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export const PROVIDERS = ["google", "openai"] as const;
+export const PROVIDERS = ["openai", "google"] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 
 export class UnknownProviderError extends Error {
@@ -25,20 +25,20 @@ export class UnknownProviderError extends Error {
 }
 
 export function resolveModel(provider?: string) {
-  const id = (provider ?? "google").toLowerCase();
+  const id = (provider ?? "openai").toLowerCase();
 
-  if (id === "openai") {
+  if (id === "openai" || id === "luna") {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY is missing on the server.");
     }
-    return openai("gpt-4.1-mini");
+    // Cheap high-volume default. Flagship is gpt-6-astra — not the product name.
+    return openai("gpt-5.6-luna");
   }
 
   if (id === "google" || id === "gemini") {
     if (!googleKey()) {
       throw new Error("GEMINI_API_KEY is missing on the server.");
     }
-    // New AI Studio keys cannot call gemini-2.5-flash (Sept 2026).
     return google("gemini-3.6-flash");
   }
 
